@@ -76,7 +76,7 @@ namespace TazosKanto
             // Flick: velocidad del dedo en los últimos milisegundos.
             Vector2 flick = FlickVelocity();
             float norm = Screen.height;                      // px/s → fracción de pantalla/s
-            float lift = Mathf.Clamp01(-flick.y / (norm * 2.5f));   // hacia abajo = globo
+            float lift = Mathf.Clamp01(flick.y / (norm * 2.5f));    // flick hacia arriba = globo
             Elevation = Mathf.Lerp(2f, GameTuning.MaxElevation, lift);
             Tilt = Mathf.Clamp(flick.x / (norm * 1.6f), -1f, 1f) * GameTuning.MaxTilt;
 

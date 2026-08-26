@@ -130,7 +130,19 @@ El único añadido arcade: cuando el detector ve un **contacto de cuña legítim
 relativa entrante), multiplica ese par por un factor ajustable (arranca en 2,2). No
 inventa fuerzas ni decide resultados: **amplifica un par que ya existe**, porque a
 escala de 4 mm y 60 Hz la simulación pierde parte del empuje real de la cuña.
-Factor 1,0 = física pura y sigue funcionando, sólo que exige más precisión.
+
+> **Medido en el prototipo (corrige lo que suponía este documento).** Con el factor a
+> 1,0 —física pura— un disco rígido perfectamente plano **no vuelca prácticamente
+> nunca**: la cuña entrega unos 20 rad/s y hacen falta ~43 para dar la vuelta a un tazo
+> de 4 cm. Y un golpe en el canto genera un par ridículo, porque el brazo es el grosor:
+> 2 mm. Un tazo real está curvado y su cartón cede, así que gira mucho más de lo que
+> gira este disco ideal.
+>
+> Por eso el prototipo tiene **dos** amplificadores, no uno: el de la palanca (×2,2) y
+> uno nuevo, el **vuelco en el canto** (×2,5), que multiplica el par —nunca el impulso
+> lineal— de cualquier impacto en el borde de un tazo. Con ambos a 1,0 la partida da
+> cero volteados; con 2,2 y 2,5 da entre 0 y 8. El 20% arcade del objetivo es en
+> realidad más cerca del 35%, y conviene saberlo antes de construir sobre él.
 
 Consecuencias de diseño que esto regala gratis:
 

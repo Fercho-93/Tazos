@@ -1,0 +1,944 @@
+<title>Mesa de Tazos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --paper:#0F131A; --surface:#161B24; --ink:#E5E9F0; --ink-2:#98A2B2;
+    --rule:#2A313D; --holo:#6BA5FF; --plastic:#E8AC45;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);
+    font-family:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    touch-action:none;user-select:none;-webkit-user-select:none}
+  canvas{display:block;width:100%;height:100%;position:fixed;inset:0}
+
+  .hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;
+    justify-content:space-between;padding:calc(env(safe-area-inset-top) + 12px) 12px
+    calc(env(safe-area-inset-bottom) + 12px)}
+  .row{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
+  .stat{background:rgba(22,27,36,.82);border:1px solid var(--rule);border-radius:6px;
+    padding:5px 9px;backdrop-filter:blur(8px)}
+  .stat b{font-size:16px;display:block;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .stat span{color:var(--ink-2);font-size:9px;letter-spacing:.12em;text-transform:uppercase;display:block}
+
+  #combo{position:fixed;left:0;right:0;top:24%;text-align:center;font-size:29px;font-weight:800;
+    letter-spacing:.03em;color:var(--plastic);text-shadow:0 3px 24px rgba(0,0,0,.85);
+    opacity:0;transition:opacity .18s;pointer-events:none}
+  #combo.on{opacity:1;animation:pop .42s ease-out}
+  @keyframes pop{0%{transform:scale(.72)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @media (prefers-reduced-motion:reduce){#combo.on{animation:none}}
+
+  .bottom{display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .gauge{display:flex;gap:12px;font-size:11px;color:var(--ink-2);
+    font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+    opacity:0;transition:opacity .12s}
+  .gauge.on{opacity:1}
+  .gauge i{font-style:normal;color:var(--ink)}
+  .bar{height:5px;background:var(--rule);border-radius:3px;overflow:hidden;opacity:0;transition:opacity .12s}
+  .bar.on{opacity:1}
+  .bar div{height:100%;width:0;background:linear-gradient(90deg,var(--holo),var(--plastic))}
+
+  .btns{display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap}
+  button{font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:rgba(22,27,36,.92);
+    border:1px solid var(--rule);border-radius:8px;padding:11px 13px;min-height:44px}
+  button:active{background:#212836}
+  button.sel{border-color:var(--holo);color:var(--holo)}
+  button:focus-visible{outline:2px solid var(--holo);outline-offset:2px}
+
+  .panel{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 74px);
+    background:rgba(22,27,36,.97);border:1px solid var(--rule);border-radius:10px;padding:14px;
+    pointer-events:auto;display:none}
+  .panel.on{display:block}
+  .panel label{display:block;font-size:11px;color:var(--ink-2);text-transform:uppercase;
+    letter-spacing:.09em;margin:0 0 5px}
+  .panel .v{color:var(--holo);font-family:"IBM Plex Mono",monospace}
+  .panel input{width:100%;margin:0 0 14px;accent-color:var(--holo)}
+  .panel p{font-size:12px;color:var(--ink-2);margin:0;line-height:1.5}
+
+  .end{position:fixed;inset:0;background:rgba(15,19,26,.95);display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;padding:28px;pointer-events:auto;text-align:center}
+  .end.on{display:flex}
+  .end h2{font-size:25px;margin:0;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+  .end .got{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:340px}
+  .end .got span{font-size:12px;background:var(--surface);border:1px solid var(--rule);
+    border-radius:5px;padding:5px 8px;font-variant-numeric:tabular-nums}
+  .end p{color:var(--ink-2);font-size:13px;margin:0;max-width:32ch;line-height:1.5}
+
+  .hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 132px);
+    text-align:center;font-size:12px;color:var(--ink-2);pointer-events:none;transition:opacity .4s}
+</style>
+
+<canvas id="c"></canvas>
+
+<div class="hud">
+  <div class="row">
+    <div class="stat"><span>Tiros</span><b id="s-throws">5</b></div>
+    <div class="stat"><span>Conseguidos</span><b id="s-got">0</b></div>
+    <div class="stat"><span>Pokédex</span><b id="s-dex">0/151</b></div>
+    <div class="stat"><span>Lanzador</span><b id="s-loadout" style="font-size:13px">Snorlax</b></div>
+  </div>
+  <div class="bottom">
+    <div class="gauge" id="gauge">
+      <div>POT <i id="g-pow">0%</i></div>
+      <div>ÁNG <i id="g-ang">0°</i></div>
+      <div>INC <i id="g-tilt">0°</i></div>
+      <div>SPIN <i id="g-spin">0</i></div>
+    </div>
+    <div class="bar" id="bar"><div id="bar-fill"></div></div>
+    <div class="btns">
+      <button id="b-tazo">Cambiar tazo</button>
+      <button id="b-new">Nueva partida</button>
+      <button id="b-tune">Física</button>
+    </div>
+  </div>
+</div>
+
+<div id="combo"></div>
+<div class="hint" id="hint">Arrastra hacia atrás y suelta</div>
+
+<div class="panel" id="panel">
+  <label>Palanca <span class="v" id="v-lever">2.20</span> — 1.0 es física pura</label>
+  <input type="range" id="i-lever" min="1" max="4" step="0.05" value="2.2" aria-label="Impulso de palanca">
+  <label>Vuelco en el canto <span class="v" id="v-tumble">2.50</span> — 1.0 es física pura</label>
+  <input type="range" id="i-tumble" min="1" max="5" step="0.05" value="2.5" aria-label="Vuelco en el canto">
+  <label>Velocidad máxima <span class="v" id="v-speed">6.0</span> m/s</label>
+  <input type="range" id="i-speed" min="3" max="10" step="0.1" value="6" aria-label="Velocidad máxima">
+  <label>Spin máximo <span class="v" id="v-spin">25</span> rad/s</label>
+  <input type="range" id="i-spin" min="0" max="60" step="1" value="25" aria-label="Spin máximo">
+  <p>Con los dos primeros a 1.0 tienes física pura: comprobarás que entonces casi
+  no vuelca nada. Ahí está el 20% arcade, y es más de lo que parecía.</p>
+</div>
+
+<div class="end" id="end">
+  <h2 id="end-title">Fin de la partida</h2>
+  <div class="got" id="end-got"></div>
+  <p id="end-sub"></p>
+  <button id="b-again">Otra vez</button>
+</div>
+
+<script>
+"use strict";
+/* ==================================================================
+   TAZOS KANTO — prototipo de física para navegador.
+   La misma física que el prototipo de Unity, resuelta a mano: discos
+   rígidos con canto biselado, contactos por muestreo de puntos, impulsos
+   secuenciales con fricción de Coulomb, y palanca por pura geometría.
+   El núcleo va con aritmética escalar y sin reservar memoria, porque
+   el bucle interno corre miles de veces por fotograma en un móvil.
+   ================================================================== */
+
+/* ---------- 1. Los 151 de Kanto ---------- */
+const RAW =
+  "Bulbasaur B,Ivysaur B,Venusaur D,Charmander L,Charmeleon B,Charizard D,Squirtle B,Wartortle B,Blastoise D,Caterpie L,Metapod D,Butterfree F,Weedle L,Kakuna D,Beedrill S,Pidgey F,Pidgeotto F,Pidgeot F,Rattata L,Raticate B,Spearow F,Fearow F,Ekans L,Arbok B,Pikachu L,Raichu B,Sandshrew B,Sandslash S,Nidoran♀ L,Nidorina B,Nidoqueen D,Nidoran♂ L,Nidorino B,Nidoking D,Clefairy L,Clefable B,Vulpix L,Ninetales B,Jigglypuff F,Wigglytuff F,Zubat F,Golbat F,Oddish L,Gloom B,Vileplume B,Paras L,Parasect B,Venonat L,Venomoth F,Diglett L,Dugtrio B,Meowth L,Persian B,Psyduck B,Golduck B,Mankey L,Primeape B,Growlithe B,Arcanine D,Poliwag L,Poliwhirl B,Poliwrath D,Abra L,Kadabra P,Alakazam P,Machop B,Machoke D,Machamp D,Bellsprout L,Weepinbell L,Victreebel B,Tentacool L,Tentacruel D,Geodude R,Graveler R,Golem R,Ponyta B,Rapidash B,Slowpoke D,Slowbro D,Magnemite P,Magneton P,Farfetch'd S,Doduo L,Dodrio B,Seel D,Dewgong D,Grimer D,Muk H,Shellder S,Cloyster R,Gastly F,Haunter F,Gengar B,Onix R,Drowzee B,Hypno D,Krabby S,Kingler S,Voltorb F,Electrode F,Exeggcute L,Exeggutor D,Cubone L,Marowak B,Hitmonlee B,Hitmonchan B,Lickitung D,Koffing F,Weezing F,Rhyhorn R,Rhydon R,Chansey B,Tangela B,Kangaskhan D,Horsea L,Seadra B,Goldeen L,Seaking B,Staryu S,Starmie S,Mr. Mime B,Scyther S,Jynx B,Electabuzz B,Magmar B,Pinsir S,Tauros H,Magikarp L,Gyarados H,Lapras H,Ditto B,Eevee L,Vaporeon B,Jolteon L,Flareon B,Porygon P,Omanyte S,Omastar S,Kabuto S,Kabutops S,Aerodactyl S,Snorlax H,Articuno P,Zapdos P,Moltres P,Dratini L,Dragonair B,Dragonite D,Mewtwo P,Mew F";
+const DEX = RAW.split(",").map((s, i) => {
+  const k = s.lastIndexOf(" ");
+  return { n: i + 1, name: s.slice(0, k), arch: s.slice(k + 1) };
+});
+
+// masa, grosor, bisel, domo (mm), fricción, rebote, color
+const ARCH = {
+  F: { m: 0.55, t: 0.80, bev: 0.45, dome: 0.9, fr: 0.22, e: 0.55, c: [190, 204, 242] }, // Pluma
+  L: { m: 0.75, t: 0.95, bev: 0.50, dome: 0.7, fr: 0.34, e: 0.38, c: [250, 217,  77] }, // Ligero
+  B: { m: 1.00, t: 1.00, bev: 0.45, dome: 0.6, fr: 0.40, e: 0.30, c: [214, 216, 224] }, // Equilibrado
+  D: { m: 1.30, t: 1.25, bev: 0.35, dome: 0.5, fr: 0.48, e: 0.20, c: [102, 153, 217] }, // Denso
+  H: { m: 1.80, t: 1.55, bev: 0.25, dome: 0.4, fr: 0.60, e: 0.10, c: [110, 128, 170] }, // Pesado
+  R: { m: 1.60, t: 1.35, bev: 0.30, dome: 0.4, fr: 0.72, e: 0.06, c: [166, 132, 100] }, // Roca
+  S: { m: 0.80, t: 0.55, bev: 0.95, dome: 0.8, fr: 0.24, e: 0.18, c: [130, 214, 130] }, // Filo
+  P: { m: 1.00, t: 1.00, bev: 0.50, dome: 0.6, fr: 0.42, e: 0.16, c: [186, 148, 236] }, // Precisión
+};
+
+const R0 = 0.040, T0 = 0.0040, M0 = 0.0075;   // radio, grosor y masa base (m, kg)
+
+function profile(num) {
+  const a = ARCH[DEX[num - 1].arch];
+  const p = { r: R0, h: T0 * a.t * 0.5, m: M0 * a.m, bev: a.bev,
+              dome: a.dome * 0.001, fr: a.fr, e: a.e, c: a.c };
+  switch (DEX[num - 1].name) {           // los emblemáticos, ajustados a mano
+    case "Snorlax": p.m *= 1.25; p.e = 0.05; p.fr = 0.65; p.bev = 0.15; break;
+    case "Geodude": p.m *= 1.10; p.fr = 0.80; p.e = 0.04; break;
+    case "Scyther": p.h *= 0.80; p.bev = 1.00; p.fr = 0.20; break;
+    case "Pikachu": p.e = 0.32; break;
+    case "Mewtwo":  p.m = M0 * 1.05; p.fr = 0.44; p.e = 0.18; break;
+  }
+  // El hueco del canto —por donde entra la palanca— lo da el bisel. El domo de un
+  // tazo real haría que las pilas se apoyasen punto contra punto, así que su
+  // aportación se suma al mismo hueco en vez de curvar la cara.
+  p.bevDrop = Math.min(p.h * 0.90, p.h * p.bev * 0.65 + p.dome);
+  p.rInner = p.r * (1 - (0.10 + 0.22 * p.bev));       // dónde empieza el bisel
+  return p;
+}
+
+/* ---------- 2. Geometría del disco ----------
+   Perfil de la superficie: domo suave en el centro, bisel en el canto.
+   Esta curva es lo único que crea el hueco por el que se cuela otro tazo:
+   sin ella no existe la palanca. */
+function surfaceY(p, rad) {
+  if (rad <= p.rInner) return p.h;                     // cara plana: las pilas se sostienen
+  const u = (rad - p.rInner) / (p.r - p.rInner);
+  return p.h - p.bevDrop * u * u;                      // canto adelgazado: el hueco
+}
+function surfaceSlope(p, rad) {                        // d(surfaceY)/d(rad)
+  if (rad <= p.rInner) return 0;
+  const u = (rad - p.rInner) / (p.r - p.rInner);
+  return -2 * p.bevDrop * u / (p.r - p.rInner);
+}
+
+/* ---------- 3. Álgebra escalar (sin reservar memoria) ---------- */
+let SX = 0, SY = 0, SZ = 0;                            // salida de las rotaciones
+
+function rotQ(qx, qy, qz, qw, vx, vy, vz) {            // v' = q · v · q*
+  const tx = 2 * (qy * vz - qz * vy);
+  const ty = 2 * (qz * vx - qx * vz);
+  const tz = 2 * (qx * vy - qy * vx);
+  SX = vx + qw * tx + (qy * tz - qz * ty);
+  SY = vy + qw * ty + (qz * tx - qx * tz);
+  SZ = vz + qw * tz + (qx * ty - qy * tx);
+}
+function invRotQ(qx, qy, qz, qw, vx, vy, vz) { rotQ(-qx, -qy, -qz, qw, vx, vy, vz); }
+
+function applyInvI(b, vx, vy, vz) {                    // I⁻¹ en coordenadas de mundo
+  invRotQ(b.qx, b.qy, b.qz, b.qw, vx, vy, vz);
+  const lx = SX * b.iix, ly = SY * b.iiy, lz = SZ * b.iiz;
+  rotQ(b.qx, b.qy, b.qz, b.qw, lx, ly, lz);
+}
+
+/* ---------- 4. El cuerpo ---------- */
+const RING = 8;                                        // puntos de contacto por cara
+let NEXT_ID = 1;
+
+class Tazo {
+  constructor(num, x, y, z, yaw, faceDown) {
+    const p = profile(num);
+    this.id = NEXT_ID++;
+    this.num = num;
+    this.p = p;
+    this.px = x; this.py = y; this.pz = z;
+    this.vx = 0; this.vy = 0; this.vz = 0;
+    this.wx = 0; this.wy = 0; this.wz = 0;
+
+    // yaw sobre Y, y media vuelta sobre X si va boca abajo
+    const cy = Math.cos(yaw / 2), sy = Math.sin(yaw / 2);
+    if (faceDown) { this.qx = cy; this.qy = 0; this.qz = -sy; this.qw = 0; }
+    else          { this.qx = 0;  this.qy = sy; this.qz = 0;  this.qw = cy; }
+
+    this.invM = 1 / p.m;
+    // Tensor de inercia de un disco: su propio eje es mucho más fácil de girar.
+    const t = p.h * 2;
+    const Ix = p.m * (3 * p.r * p.r + t * t) / 12, Iy = p.m * p.r * p.r / 2;
+    this.iix = 1 / Ix; this.iiy = 1 / Iy; this.iiz = 1 / Ix;
+
+    // Puntos de muestreo por cara: el centro, un anillo sobre la zona plana
+    // —que es lo que sostiene al disco y a las pilas— y un anillo en el canto,
+    // que es el que se cuela debajo de otro tazo.
+    const n = 2 * (1 + 2 * RING);
+    this.pts = new Float64Array(n * 3);
+    let k = 0;
+    for (const s of [1, -1]) {
+      this.pts[k++] = 0; this.pts[k++] = s * surfaceY(p, 0); this.pts[k++] = 0;
+      for (const rad of [p.rInner * 0.95, p.r * 0.995]) {
+        for (let i = 0; i < RING; i++) {
+          const a = (i / RING) * Math.PI * 2 + (s > 0 ? 0 : Math.PI / RING);
+          this.pts[k++] = Math.cos(a) * rad;
+          this.pts[k++] = s * surfaceY(p, rad);
+          this.pts[k++] = Math.sin(a) * rad;
+        }
+      }
+    }
+    this.nPts = n;
+
+    this.projectile = false;
+    this.collected = false;
+    this.rest = 0;
+    this.sleep = false;
+  }
+
+  get axisY() { rotQ(this.qx, this.qy, this.qz, this.qw, 0, 1, 0); return SY; }
+  get faceUp() { return this.axisY > 0.55; }
+}
+
+/* ---------- 5. Mundo y contactos ---------- */
+const TUNE = { lever: 2.2, tumble: 2.5, maxSpeed: 6.0, minSpeed: 2.2, maxSpin: 25, maxElev: 22, maxTilt: 45 };
+const TABLE = { x: 0.46, zMin: -0.62, zMax: 0.70 };
+const G = -9.81;
+const bodies = [];
+
+const CMAX = 1400;
+const cA = new Int32Array(CMAX), cB = new Int32Array(CMAX);
+const cpx = new Float64Array(CMAX), cpy = new Float64Array(CMAX), cpz = new Float64Array(CMAX);
+const cnx = new Float64Array(CMAX), cny = new Float64Array(CMAX), cnz = new Float64Array(CMAX);
+const cpen = new Float64Array(CMAX), cfr = new Float64Array(CMAX), cre = new Float64Array(CMAX);
+const cwedge = new Uint8Array(CMAX), crim = new Uint8Array(CMAX);
+let nC = 0;
+
+function addContact(ai, bi, x, y, z, nx, ny, nz, pen, fr, e, wedge, rim) {
+  if (nC >= CMAX) return;
+  cA[nC] = ai; cB[nC] = bi;
+  cpx[nC] = x; cpy[nC] = y; cpz[nC] = z;
+  cnx[nC] = nx; cny[nC] = ny; cnz[nC] = nz;
+  cpen[nC] = pen; cfr[nC] = fr; cre[nC] = e; cwedge[nC] = wedge; crim[nC] = rim;
+  nC++;
+}
+
+// Contacto de un punto contra el volumen de un disco. En la zona del bisel
+// la normal se inclina hacia fuera y hacia arriba: eso es lo que convierte
+// una cuña en un par, y por tanto lo que hace posible la palanca.
+let HNX = 0, HNY = 0, HNZ = 0, HPEN = 0, HWEDGE = 0, HRIM = 0;
+function pointInDisc(b, wx, wy, wz) {
+  invRotQ(b.qx, b.qy, b.qz, b.qw, wx - b.px, wy - b.py, wz - b.pz);
+  const lx = SX, ly = SY, lz = SZ;
+  const rad = Math.sqrt(lx * lx + lz * lz);
+  const p = b.p;
+  if (rad > p.r) return false;
+  const sy = surfaceY(p, rad);
+  const ay = ly < 0 ? -ly : ly;
+  if (ay > sy) return false;
+
+  const penAxis = sy - ay, penRad = p.r - rad;
+  const sgn = ly >= 0 ? 1 : -1;
+  let nlx, nly, nlz;
+  if (penAxis <= penRad) {
+    const slope = surfaceSlope(p, rad);
+    const rx = rad > 1e-7 ? lx / rad : 1, rz = rad > 1e-7 ? lz / rad : 0;
+    nlx = -slope * rx; nly = sgn; nlz = -slope * rz;
+    const l = Math.sqrt(nlx * nlx + nly * nly + nlz * nlz) || 1;
+    nlx /= l; nly /= l; nlz /= l;
+    HPEN = penAxis;
+  } else {
+    nlx = rad > 1e-7 ? lx / rad : 1; nly = 0; nlz = rad > 1e-7 ? lz / rad : 0;
+    HPEN = penRad;
+  }
+  rotQ(b.qx, b.qy, b.qz, b.qw, nlx, nly, nlz);
+  HNX = SX; HNY = SY; HNZ = SZ;
+  // Cuña legítima: el contacto está por debajo del centro del objetivo (en mundo,
+  // no en sus ejes) y cerca de su canto. Es decir, nos hemos colado por debajo.
+  HRIM = rad > p.rInner ? 1 : 0;
+  HWEDGE = (wy < b.py - 1e-5 && HRIM) ? 1 : 0;
+  return true;
+}
+
+function collect() {
+  nC = 0;
+  for (let i = 0; i < bodies.length; i++) {
+    const b = bodies[i];
+    if (b.sleep) continue;
+    for (let k = 0; k < b.nPts; k++) {
+      rotQ(b.qx, b.qy, b.qz, b.qw, b.pts[k * 3], b.pts[k * 3 + 1], b.pts[k * 3 + 2]);
+      const wx = b.px + SX, wy = b.py + SY, wz = b.pz + SZ;
+      if (wy < 0) addContact(i, -1, wx, wy, wz, 0, 1, 0, -wy, 0.55, 0.10, 0, 0);
+      if (wx > TABLE.x) addContact(i, -1, wx, wy, wz, -1, 0, 0, wx - TABLE.x, 0.5, 0.25, 0, 0);
+      else if (wx < -TABLE.x) addContact(i, -1, wx, wy, wz, 1, 0, 0, -TABLE.x - wx, 0.5, 0.25, 0, 0);
+      if (wz > TABLE.zMax) addContact(i, -1, wx, wy, wz, 0, 0, -1, wz - TABLE.zMax, 0.5, 0.25, 0, 0);
+      else if (wz < TABLE.zMin) addContact(i, -1, wx, wy, wz, 0, 0, 1, TABLE.zMin - wz, 0.5, 0.25, 0, 0);
+    }
+  }
+
+  for (let i = 0; i < bodies.length; i++) {
+    const A = bodies[i];
+    for (let j = i + 1; j < bodies.length; j++) {
+      const B = bodies[j];
+      if (A.sleep && B.sleep) continue;
+      const dx = B.px - A.px, dy = B.py - A.py, dz = B.pz - A.pz;
+      const reach = A.p.r + B.p.r + 0.005;
+      if (dx * dx + dy * dy + dz * dz > reach * reach) continue;   // broadphase
+      pairContacts(i, j);
+      pairContacts(j, i);
+    }
+  }
+}
+
+function pairContacts(ai, bi) {                        // puntos de A dentro de B
+  const A = bodies[ai], B = bodies[bi];
+  const fr = Math.sqrt(A.p.fr * B.p.fr), e = (A.p.e + B.p.e) * 0.5;
+  for (let k = 0; k < A.nPts; k++) {
+    rotQ(A.qx, A.qy, A.qz, A.qw, A.pts[k * 3], A.pts[k * 3 + 1], A.pts[k * 3 + 2]);
+    const wx = A.px + SX, wy = A.py + SY, wz = A.pz + SZ;
+    if (!pointInDisc(B, wx, wy, wz)) continue;
+    addContact(ai, bi, wx, wy, wz, HNX, HNY, HNZ, HPEN, fr, e,
+               HWEDGE && A.projectile ? 1 : 0, HRIM);
+  }
+}
+
+/* Impulsos secuenciales: normal con corrección de penetración y restitución,
+   más fricción de Coulomb acotada por el impulso normal. */
+function solve(dt) {
+  for (let c = 0; c < nC; c++) {
+    const A = bodies[cA[c]];
+    const bi = cB[c];
+    const B = bi >= 0 ? bodies[bi] : null;
+    if (A.sleep && (!B || B.sleep)) continue;
+
+    const nx = cnx[c], ny = cny[c], nz = cnz[c];
+    const rax = cpx[c] - A.px, ray = cpy[c] - A.py, raz = cpz[c] - A.pz;
+    let rbx = 0, rby = 0, rbz = 0;
+    if (B) { rbx = cpx[c] - B.px; rby = cpy[c] - B.py; rbz = cpz[c] - B.pz; }
+
+    let vrx = A.vx + (A.wy * raz - A.wz * ray);
+    let vry = A.vy + (A.wz * rax - A.wx * raz);
+    let vrz = A.vz + (A.wx * ray - A.wy * rax);
+    if (B) {
+      vrx -= B.vx + (B.wy * rbz - B.wz * rby);
+      vry -= B.vy + (B.wz * rbx - B.wx * rbz);
+      vrz -= B.vz + (B.wx * rby - B.wy * rbx);
+    }
+    const vn = vrx * nx + vry * ny + vrz * nz;
+
+    // Masa efectiva en la dirección normal
+    let k = A.invM;
+    {
+      const cx = ray * nz - raz * ny, cy = raz * nx - rax * nz, cz = rax * ny - ray * nx;
+      applyInvI(A, cx, cy, cz);
+      k += (SY * raz - SZ * ray) * nx + (SZ * rax - SX * raz) * ny + (SX * ray - SY * rax) * nz;
+    }
+    if (B) {
+      k += B.invM;
+      const cx = rby * nz - rbz * ny, cy = rbz * nx - rbx * nz, cz = rbx * ny - rby * nx;
+      applyInvI(B, cx, cy, cz);
+      k += (SY * rbz - SZ * rby) * nx + (SZ * rbx - SX * rbz) * ny + (SX * rby - SY * rbx) * nz;
+    }
+    if (k < 1e-9) continue;
+
+    const bias = 0.28 * Math.max(0, cpen[c] - 0.00006) / dt;
+    const rest = vn < -0.35 ? cre[c] : 0;
+    let jn = (-(1 + rest) * vn + bias) / k;
+    if (jn <= 0) continue;
+
+    // PALANCA: el contacto está dentro de la cuña y entrando. Amplificamos el par
+    // que ese contacto ya genera; no inventamos ninguna fuerza nueva.
+    // La normal apunta hacia abajo (sale de la cara inferior del objetivo), así que
+    // la reacción lo levanta: sólo entonces amplificar tiene sentido físico.
+    if (cwedge[c] && cny[c] < -0.15 && vn < -0.05 && TUNE.lever > 1.001) jn *= TUNE.lever;
+
+    const gain = (B && crim[c]) ? TUNE.tumble : 1;
+    push(A, nx * jn, ny * jn, nz * jn, rax, ray, raz, gain);
+    if (B) push(B, -nx * jn, -ny * jn, -nz * jn, rbx, rby, rbz, gain);
+
+    // Fricción, con la velocidad relativa ya actualizada
+    vrx = A.vx + (A.wy * raz - A.wz * ray);
+    vry = A.vy + (A.wz * rax - A.wx * raz);
+    vrz = A.vz + (A.wx * ray - A.wy * rax);
+    if (B) {
+      vrx -= B.vx + (B.wy * rbz - B.wz * rby);
+      vry -= B.vy + (B.wz * rbx - B.wx * rbz);
+      vrz -= B.vz + (B.wx * rby - B.wy * rbx);
+    }
+    const vn2 = vrx * nx + vry * ny + vrz * nz;
+    let tx = vrx - nx * vn2, ty = vry - ny * vn2, tz = vrz - nz * vn2;
+    const tl = Math.sqrt(tx * tx + ty * ty + tz * tz);
+    if (tl < 1e-5) continue;
+    tx /= tl; ty /= tl; tz /= tl;
+
+    let kt = A.invM;
+    {
+      const cx = ray * tz - raz * ty, cy = raz * tx - rax * tz, cz = rax * ty - ray * tx;
+      applyInvI(A, cx, cy, cz);
+      kt += (SY * raz - SZ * ray) * tx + (SZ * rax - SX * raz) * ty + (SX * ray - SY * rax) * tz;
+    }
+    if (B) {
+      kt += B.invM;
+      const cx = rby * tz - rbz * ty, cy = rbz * tx - rbx * tz, cz = rbx * ty - rby * tx;
+      applyInvI(B, cx, cy, cz);
+      kt += (SY * rbz - SZ * rby) * tx + (SZ * rbx - SX * rbz) * ty + (SX * rby - SY * rbx) * tz;
+    }
+    if (kt < 1e-9) continue;
+    const max = cfr[c] * jn;
+    let jt = -tl / kt;
+    if (jt < -max) jt = -max; else if (jt > max) jt = max;
+
+    push(A, tx * jt, ty * jt, tz * jt, rax, ray, raz, gain);
+    if (B) push(B, -tx * jt, -ty * jt, -tz * jt, rbx, rby, rbz, gain);
+  }
+}
+
+// El impulso lineal es el que dicta la física; `gain` amplifica sólo su PAR.
+// Un tazo real está ligeramente curvado y su cartón cede: un disco rígido
+// perfectamente plano gira mucho menos de lo que gira un tazo de verdad al
+// recibir un golpe en el canto. Esto compensa esa diferencia. gain = 1 lo apaga.
+function push(b, jx, jy, jz, rx, ry, rz, gain) {
+  b.vx += jx * b.invM; b.vy += jy * b.invM; b.vz += jz * b.invM;
+  applyInvI(b, ry * jz - rz * jy, rz * jx - rx * jz, rx * jy - ry * jx);
+  b.wx += SX * gain; b.wy += SY * gain; b.wz += SZ * gain;
+  b.sleep = false;
+}
+
+function step(dt) {
+  for (const b of bodies) {
+    if (b.sleep) continue;
+    b.vy += G * dt;
+
+    // Arrastre por área proyectada (de canto vuela, de plano frena) y Magnus.
+    const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+    if (sp > 0.25 && b.py > b.p.h * 3) {
+      rotQ(b.qx, b.qy, b.qz, b.qw, 0, 1, 0);
+      const faceOn = Math.abs((SX * b.vx + SY * b.vy + SZ * b.vz) / sp);
+      const area = Math.PI * b.p.r * b.p.r * (0.12 + 0.88 * faceOn);
+      const a = 0.5 * 1.225 * area * sp * sp / b.p.m * dt;
+      b.vx -= b.vx / sp * a; b.vy -= b.vy / sp * a; b.vz -= b.vz / sp * a;
+      const mg = 0.0016 * dt;
+      b.vx += (b.wy * b.vz - b.wz * b.vy) * mg;
+      b.vy += (b.wz * b.vx - b.wx * b.vz) * mg;
+      b.vz += (b.wx * b.vy - b.wy * b.vx) * mg;
+    }
+
+    const dl = 1 - 0.05 * dt, da = 1 - 0.10 * dt;
+    b.vx *= dl; b.vy *= dl; b.vz *= dl;
+    b.wx *= da; b.wy *= da; b.wz *= da;
+
+    b.px += b.vx * dt; b.py += b.vy * dt; b.pz += b.vz * dt;
+
+    // Integración del cuaternión: q += 0.5 · ω · q · dt
+    const hx = b.wx * dt * 0.5, hy = b.wy * dt * 0.5, hz = b.wz * dt * 0.5;
+    const nx2 = b.qx + (hx * b.qw + hy * b.qz - hz * b.qy);
+    const ny2 = b.qy + (-hx * b.qz + hy * b.qw + hz * b.qx);
+    const nz2 = b.qz + (hx * b.qy - hy * b.qx + hz * b.qw);
+    const nw2 = b.qw + (-hx * b.qx - hy * b.qy - hz * b.qz);
+    const l = Math.sqrt(nx2 * nx2 + ny2 * ny2 + nz2 * nz2 + nw2 * nw2) || 1;
+    b.qx = nx2 / l; b.qy = ny2 / l; b.qz = nz2 / l; b.qw = nw2 / l;
+  }
+
+  collect();
+  for (let it = 0; it < 6; it++) solve(dt);
+
+  for (const b of bodies) {
+    if (b.sleep) continue;
+    const v2 = b.vx * b.vx + b.vy * b.vy + b.vz * b.vz;
+    const w2 = b.wx * b.wx + b.wy * b.wy + b.wz * b.wz;
+    const still = v2 < 0.0022 && w2 < 0.35 && b.py < b.p.h * 5;
+    b.rest = still ? b.rest + dt : 0;
+    if (b.rest > 0.28) { b.sleep = true; b.vx = b.vy = b.vz = b.wx = b.wy = b.wz = 0; }
+  }
+}
+
+/* ---------- 6. Cámara y render ---------- */
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1, focal = 1;
+const CAM = { x: 0, y: 0.46, z: -0.98, lx: 0, ly: 0.01, lz: 0.06, hfov: 52 };
+let FWD, RIGHT, UP;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // FOV horizontal fijo: en vertical la cámara ve más alto, no menos ancho.
+  focal = (W / 2) / Math.tan(CAM.hfov * Math.PI / 360);
+
+  let fx = CAM.lx - CAM.x, fy = CAM.ly - CAM.y, fz = CAM.lz - CAM.z;
+  let l = Math.hypot(fx, fy, fz); fx /= l; fy /= l; fz /= l;
+  let rx = fz, ry = 0, rz = -fx;                        // fwd × (0,1,0)
+  l = Math.hypot(rx, ry, rz); rx /= l; ry /= l; rz /= l;
+  FWD = [fx, fy, fz]; RIGHT = [rx, ry, rz];
+  UP = [ry * fz - rz * fy, rz * fx - rx * fz, rx * fy - ry * fx];
+}
+window.addEventListener("resize", resize);
+
+let PX = 0, PY = 0, PZ = 0;
+function project(x, y, z) {
+  const dx = x - CAM.x, dy = y - CAM.y, dz = z - CAM.z;
+  PZ = dx * FWD[0] + dy * FWD[1] + dz * FWD[2];
+  if (PZ < 0.03) return false;
+  const s = focal / PZ;
+  PX = W / 2 + (dx * RIGHT[0] + dy * RIGHT[1] + dz * RIGHT[2]) * s;
+  PY = H / 2 - (dx * UP[0] + dy * UP[1] + dz * UP[2]) * s;
+  return true;
+}
+
+const LX = -0.35, LY = 0.86, LZ = -0.36;
+function shade(c, nx, ny, nz, k) {
+  let d = nx * LX + ny * LY + nz * LZ;
+  if (d < 0) d = 0;
+  const f = (0.30 + 0.70 * d) * k;
+  return "rgb(" + Math.min(255, c[0] * f | 0) + "," + Math.min(255, c[1] * f | 0) + "," +
+         Math.min(255, c[2] * f | 0) + ")";
+}
+
+const RIMS = 16;
+const COS = new Float64Array(RIMS), SIN = new Float64Array(RIMS);
+for (let i = 0; i < RIMS; i++) { const a = i / RIMS * Math.PI * 2; COS[i] = Math.cos(a); SIN[i] = Math.sin(a); }
+
+function drawTable() {
+  const pts = [[-TABLE.x, TABLE.zMin], [TABLE.x, TABLE.zMin], [TABLE.x, TABLE.zMax], [-TABLE.x, TABLE.zMax]];
+  const s = [];
+  for (const [x, z] of pts) { if (!project(x, 0, z)) return; s.push([PX, PY]); }
+  ctx.beginPath();
+  ctx.moveTo(s[0][0], s[0][1]);
+  for (let i = 1; i < 4; i++) ctx.lineTo(s[i][0], s[i][1]);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0, s[3][1], 0, s[0][1]);
+  g.addColorStop(0, "#4C3823"); g.addColorStop(1, "#291F13");
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = "#6E5435"; ctx.lineWidth = 2; ctx.stroke();
+}
+
+const rimTop = [], rimBot = [];
+function drawShadow(b) {
+  const alpha = 0.34 - b.py * 1.6;
+  if (alpha <= 0.02) return;
+  ctx.beginPath();
+  for (let i = 0; i < RIMS; i++) {
+    rotQ(b.qx, b.qy, b.qz, b.qw, COS[i] * b.p.r, 0, SIN[i] * b.p.r);
+    if (!project(b.px + SX, 0.0007, b.pz + SZ)) return;
+    if (i === 0) ctx.moveTo(PX, PY); else ctx.lineTo(PX, PY);
+  }
+  ctx.closePath();
+  ctx.fillStyle = "rgba(0,0,0," + alpha.toFixed(3) + ")";
+  ctx.fill();
+}
+
+const polys = [];
+const BACK = [116, 108, 96];
+function buildPolys() {
+  polys.length = 0;
+  for (const b of bodies) {
+    const y = surfaceY(b.p, b.p.r);
+    rimTop.length = 0; rimBot.length = 0;
+    let ok = true;
+    for (let i = 0; i < RIMS; i++) {
+      rotQ(b.qx, b.qy, b.qz, b.qw, COS[i] * b.p.r, y, SIN[i] * b.p.r);
+      if (!project(b.px + SX, b.py + SY, b.pz + SZ)) { ok = false; break; }
+      rimTop.push(PX, PY, PZ);
+      rotQ(b.qx, b.qy, b.qz, b.qw, COS[i] * b.p.r, -y, SIN[i] * b.p.r);
+      if (!project(b.px + SX, b.py + SY, b.pz + SZ)) { ok = false; break; }
+      rimBot.push(PX, PY, PZ);
+    }
+    if (!ok) continue;
+
+    rotQ(b.qx, b.qy, b.qz, b.qw, 0, 1, 0);
+    const ax = SX, ay = SY, az = SZ;
+    const shown = b.collected || b.projectile;
+    const top = [], bot = [];
+    let zt = 0, zb = 0;
+    for (let i = 0; i < RIMS; i++) {
+      top.push(rimTop[i * 3], rimTop[i * 3 + 1]);
+      zt += rimTop[i * 3 + 2];
+      const j = RIMS - 1 - i;
+      bot.push(rimBot[j * 3], rimBot[j * 3 + 1]);
+      zb += rimBot[j * 3 + 2];
+    }
+    polys.push({ v: top, z: zt / RIMS, c: shown || b.faceUp ? b.p.c : BACK,
+                 nx: ax, ny: ay, nz: az, k: 1, tag: b });
+    polys.push({ v: bot, z: zb / RIMS, c: shown ? b.p.c : BACK,
+                 nx: -ax, ny: -ay, nz: -az, k: 0.8, tag: null });
+
+    for (let i = 0; i < RIMS; i++) {
+      const j = (i + 1) % RIMS;
+      rotQ(b.qx, b.qy, b.qz, b.qw, (COS[i] + COS[j]) * 0.5, 0, (SIN[i] + SIN[j]) * 0.5);
+      polys.push({
+        v: [rimTop[i * 3], rimTop[i * 3 + 1], rimTop[j * 3], rimTop[j * 3 + 1],
+            rimBot[j * 3], rimBot[j * 3 + 1], rimBot[i * 3], rimBot[i * 3 + 1]],
+        z: (rimTop[i * 3 + 2] + rimBot[j * 3 + 2]) * 0.5,
+        c: b.p.c, nx: SX, ny: SY, nz: SZ, k: 0.66, tag: null,
+      });
+    }
+  }
+  polys.sort((a, b) => b.z - a.z);
+}
+
+function render() {
+  ctx.fillStyle = "#0F131A";
+  ctx.fillRect(0, 0, W, H);
+  drawTable();
+  for (const b of bodies) drawShadow(b);
+  drawAim();
+  buildPolys();
+
+  for (const p of polys) {
+    const v = p.v;
+    // Culling por orientación del polígono proyectado
+    const a = (v[2] - v[0]) * (v[5] - v[1]) - (v[4] - v[0]) * (v[3] - v[1]);
+    if (a <= 0) continue;
+    ctx.beginPath();
+    ctx.moveTo(v[0], v[1]);
+    for (let i = 2; i < v.length; i += 2) ctx.lineTo(v[i], v[i + 1]);
+    ctx.closePath();
+    ctx.fillStyle = shade(p.c, p.nx, p.ny, p.nz, p.k);
+    ctx.fill();
+
+    const b = p.tag;
+    if (b && (b.faceUp || b.projectile || b.collected)) {
+      let cx = 0, cy = 0;
+      for (let i = 0; i < v.length; i += 2) { cx += v[i]; cy += v[i + 1]; }
+      cx /= v.length / 2; cy /= v.length / 2;
+      const rpx = Math.hypot(v[0] - cx, v[1] - cy);
+      if (rpx > 12) {
+        ctx.fillStyle = "rgba(18,22,30,.78)";
+        ctx.font = "700 " + Math.min(rpx * 0.8, 26).toFixed(0) + "px Archivo, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(String(b.num).padStart(3, "0"), cx, cy);
+      }
+    }
+  }
+}
+
+/* ---------- 7. Control táctil: cinco canales con un pulgar ---------- */
+const game = { throwsLeft: 5, got: 0, gotList: [], loadout: 0, resolving: false,
+               loadouts: [143, 74, 123, 25, 150] };  // Snorlax, Geodude, Scyther, Pikachu, Mewtwo
+const aim = { on: false, pow: 0, az: 0, elev: 0, tilt: 0, spin: 0 };
+let drag = null;
+
+const pointer = ev => {
+  const t = ev.touches ? (ev.touches[0] || ev.changedTouches[0]) : ev;
+  return { x: t.clientX, y: t.clientY, t: performance.now() / 1000 };
+};
+
+function onDown(ev) {
+  if (game.resolving || game.throwsLeft <= 0) return;
+  if (ev.target !== cv) return;
+  ev.preventDefault();
+  drag = { start: pointer(ev), path: [pointer(ev)] };
+  aim.on = true;
+  document.getElementById("hint").style.opacity = "0";
+}
+function onMove(ev) {
+  if (!drag) return;
+  ev.preventDefault();
+  const p = pointer(ev);
+  drag.path.push(p);
+  if (drag.path.length > 120) drag.path.shift();
+  evaluate(p);
+  updateGauge();
+}
+function onUp(ev) {
+  if (!drag) return;
+  ev.preventDefault();
+  evaluate(pointer(ev));
+  drag = null;
+  aim.on = false;
+  updateGauge();
+  if (aim.pow > 0.08) launch();
+}
+
+function evaluate(p) {
+  const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+  const full = Math.min(window.innerHeight, window.innerWidth * 1.7) * 0.30;
+  aim.pow = Math.min(1, Math.hypot(dx, dy) / full);
+  // Se lanza en sentido contrario al arrastre.
+  aim.az = Math.hypot(dx, dy) > 6 ? Math.atan2(-dx, dy) : 0;
+
+  // Flick: velocidad del dedo en los últimos 80 ms. Hacia arriba = globo.
+  const path = drag.path, now = path[path.length - 1].t;
+  let i = path.length - 1;
+  while (i > 0 && now - path[i].t < 0.08) i--;
+  const dt = Math.max(0.001, now - path[i].t);
+  const fx = (path[path.length - 1].x - path[i].x) / dt;
+  const fy = (path[path.length - 1].y - path[i].y) / dt;
+  const nrm = window.innerHeight;
+  aim.elev = 2 + Math.min(1, Math.max(0, -fy / (nrm * 2.2))) * (TUNE.maxElev - 2);
+  aim.tilt = Math.max(-1, Math.min(1, fx / (nrm * 1.4))) * TUNE.maxTilt;
+
+  // Spin: cuánto ha girado el recorrido del dedo a lo largo del arrastre.
+  let tot = 0, l = 0;
+  for (let k = 2; k < path.length; k++) {
+    const ax = path[k - 1].x - path[k - 2].x, ay = path[k - 1].y - path[k - 2].y;
+    const bx = path[k].x - path[k - 1].x, by = path[k].y - path[k - 1].y;
+    if (ax * ax + ay * ay < 4 || bx * bx + by * by < 4) continue;
+    const cr = ax * by - ay * bx;
+    tot += Math.sign(cr) * Math.atan2(Math.abs(cr), ax * bx + ay * by) * 180 / Math.PI;
+    l += Math.hypot(bx, by);
+  }
+  aim.spin = l < 20 ? 0 : Math.max(-1, Math.min(1, tot / 180)) * TUNE.maxSpin;
+}
+
+cv.addEventListener("touchstart", onDown, { passive: false });
+cv.addEventListener("touchmove", onMove, { passive: false });
+cv.addEventListener("touchend", onUp, { passive: false });
+cv.addEventListener("touchcancel", onUp, { passive: false });
+cv.addEventListener("mousedown", onDown);
+window.addEventListener("mousemove", onMove);
+window.addEventListener("mouseup", onUp);
+
+const LAUNCH = { x: 0, y: 0.010, z: -0.52 };
+function drawAim() {
+  if (!aim.on || aim.pow < 0.03) return;
+  const dx = Math.sin(aim.az), dz = Math.cos(aim.az);
+  const reach = 0.16 + aim.pow * 0.95;
+  if (!project(LAUNCH.x, 0.012, LAUNCH.z)) return;
+  const ax = PX, ay = PY;
+  if (!project(LAUNCH.x + dx * reach, 0.012, LAUNCH.z + dz * reach)) return;
+  ctx.save();
+  ctx.setLineDash([7, 7]);
+  ctx.strokeStyle = "rgba(107,165,255," + (0.3 + aim.pow * 0.5).toFixed(2) + ")";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(PX, PY); ctx.stroke();
+  ctx.restore();
+}
+
+/* ---------- 8. Partida ---------- */
+function deal() {
+  bodies.length = 0;
+  const used = new Set();
+  const pick = () => { let n; do { n = 1 + (Math.random() * 151 | 0); } while (used.has(n)); used.add(n); return n; };
+
+  let y = 0.001;
+  for (let i = 0; i < 10; i++) {
+    const n = pick(), p = profile(n);
+    y += p.h * 2 + 0.0005;
+    bodies.push(new Tazo(n, (Math.random() - 0.5) * 0.012, y,
+                         0.06 + (Math.random() - 0.5) * 0.012, Math.random() * 6.283, true));
+  }
+  for (let i = 0; i < 6; i++) {
+    const n = pick(), p = profile(n);
+    const a = Math.random() * 6.283, d = 0.11 + Math.random() * 0.15;
+    bodies.push(new Tazo(n, Math.cos(a) * d, p.h + 0.001, 0.06 + Math.sin(a) * d, Math.random() * 6.283, true));
+  }
+}
+
+let resolveAt = 0;
+function launch() {
+  for (let i = bodies.length - 1; i >= 0; i--) if (bodies[i].projectile) bodies.splice(i, 1);
+
+  const n = game.loadouts[game.loadout % game.loadouts.length];
+  const t = new Tazo(n, LAUNCH.x, LAUNCH.y, LAUNCH.z, 0, false);
+  t.projectile = true;
+
+  const el = aim.elev * Math.PI / 180;
+  const fx = Math.sin(aim.az), fz = Math.cos(aim.az);
+  const speed = TUNE.minSpeed + (TUNE.maxSpeed - TUNE.minSpeed) * aim.pow;
+  t.vx = fx * Math.cos(el) * speed;
+  t.vy = Math.sin(el) * speed;
+  t.vz = fz * Math.cos(el) * speed;
+
+  // La inclinación gira el disco sobre su eje de vuelo: baja el canto que entra primero.
+  const ha = aim.tilt * Math.PI / 360, s = Math.sin(ha);
+  const rx = fx * s, ry = 0, rz = fz * s, rw = Math.cos(ha);
+  const qx = rw * t.qx + rx * t.qw + ry * t.qz - rz * t.qy;
+  const qy = rw * t.qy - rx * t.qz + ry * t.qw + rz * t.qx;
+  const qz = rw * t.qz + rx * t.qy - ry * t.qx + rz * t.qw;
+  const qw = rw * t.qw - rx * t.qx - ry * t.qy - rz * t.qz;
+  t.qx = qx; t.qy = qy; t.qz = qz; t.qw = qw;
+
+  rotQ(t.qx, t.qy, t.qz, t.qw, 0, 1, 0);
+  t.wx = SX * aim.spin; t.wy = SY * aim.spin; t.wz = SZ * aim.spin;
+
+  bodies.push(t);
+  game.throwsLeft--;
+  game.resolving = true;
+  resolveAt = performance.now() / 1000 + 0.5;
+  sync();
+}
+
+function tryResolve(now) {
+  if (!game.resolving || now < resolveAt) return;
+  let settled = true;
+  for (const b of bodies) if (!b.sleep) { settled = false; break; }
+  if (!settled && now < resolveAt + 7) return;
+
+  let flipped = 0;
+  for (const b of bodies) {
+    if (b.projectile || b.collected || !b.faceUp) continue;
+    b.collected = true; flipped++;
+    game.gotList.push(b.num);
+    saveDex(b.num);
+  }
+  game.got += flipped;
+  game.resolving = false;
+  if (flipped > 0) showCombo(flipped);
+  if (game.throwsLeft <= 0) setTimeout(endMatch, flipped > 0 ? 1500 : 500);
+  sync();
+}
+
+function showCombo(n) {
+  const el = document.getElementById("combo");
+  el.textContent = n === 1 ? "¡FLIP!" : n === 2 ? "DOUBLE FLIP" : n === 3 ? "TRIPLE FLIP"
+                 : n === 4 ? "QUAD FLIP" : "AVALANCHE ×" + n;
+  el.classList.add("on");
+  if (navigator.vibrate) navigator.vibrate(n >= 3 ? [20, 45, 20, 45, 32] : [16, 40, 22]);
+  clearTimeout(showCombo.t);
+  showCombo.t = setTimeout(() => el.classList.remove("on"), 1300);
+}
+
+function endMatch() {
+  const end = document.getElementById("end");
+  document.getElementById("end-title").textContent =
+    game.got === 0 ? "Ningún Pokémon" : game.got + (game.got === 1 ? " Pokémon conseguido" : " Pokémon conseguidos");
+  const got = document.getElementById("end-got");
+  got.textContent = "";
+  for (const n of game.gotList) {
+    const s = document.createElement("span");
+    s.textContent = String(n).padStart(3, "0") + " " + DEX[n - 1].name;
+    got.appendChild(s);
+  }
+  document.getElementById("end-sub").textContent = game.got === 0
+    ? "Prueba un tiro más rasante: arrastre corto y suelta en horizontal."
+    : "Pokédex: " + dexCount() + "/151";
+  end.classList.add("on");
+}
+
+function newMatch() {
+  game.throwsLeft = 5; game.got = 0; game.gotList = []; game.resolving = false;
+  document.getElementById("end").classList.remove("on");
+  deal();
+  sync();
+}
+
+/* ---------- 9. Pokédex persistente ---------- */
+let DEXSET;
+try { DEXSET = new Set(JSON.parse(localStorage.getItem("tazos.dex") || "[]")); }
+catch (e) { DEXSET = new Set(); }
+function saveDex(n) {
+  DEXSET.add(n);
+  try { localStorage.setItem("tazos.dex", JSON.stringify([...DEXSET])); } catch (e) { /* modo privado */ }
+}
+const dexCount = () => DEXSET.size;
+
+/* ---------- 10. HUD ---------- */
+const $ = id => document.getElementById(id);
+function sync() {
+  $("s-throws").textContent = game.throwsLeft;
+  $("s-got").textContent = game.got;
+  $("s-dex").textContent = dexCount() + "/151";
+  $("s-loadout").textContent = DEX[game.loadouts[game.loadout % game.loadouts.length] - 1].name;
+}
+function updateGauge() {
+  const on = aim.on && aim.pow > 0.02;
+  $("gauge").classList.toggle("on", on);
+  $("bar").classList.toggle("on", on);
+  $("bar-fill").style.width = (aim.pow * 100).toFixed(0) + "%";
+  $("g-pow").textContent = (aim.pow * 100).toFixed(0) + "%";
+  $("g-ang").textContent = aim.elev.toFixed(0) + "°";
+  $("g-tilt").textContent = aim.tilt.toFixed(0) + "°";
+  $("g-spin").textContent = aim.spin.toFixed(0);
+}
+
+$("b-tazo").onclick = () => { game.loadout++; sync(); };
+$("b-new").onclick = newMatch;
+$("b-again").onclick = newMatch;
+$("b-tune").onclick = () => {
+  const p = $("panel");
+  p.classList.toggle("on");
+  $("b-tune").classList.toggle("sel", p.classList.contains("on"));
+};
+$("i-lever").oninput = e => { TUNE.lever = +e.target.value; $("v-lever").textContent = TUNE.lever.toFixed(2); };
+$("i-tumble").oninput = e => { TUNE.tumble = +e.target.value; $("v-tumble").textContent = TUNE.tumble.toFixed(2); };
+$("i-speed").oninput = e => { TUNE.maxSpeed = +e.target.value; $("v-speed").textContent = TUNE.maxSpeed.toFixed(1); };
+$("i-spin").oninput = e => { TUNE.maxSpin = +e.target.value; $("v-spin").textContent = TUNE.maxSpin.toFixed(0); };
+
+/* ---------- 11. Bucle ---------- */
+let last = performance.now() / 1000;
+function frame() {
+  const now = performance.now() / 1000;
+  const dt = Math.min(now - last, 1 / 20);
+  last = now;
+
+  // Substepping adaptativo: un disco de 4 mm a 9 m/s atravesaría la pila
+  // de un salto si el paso fuese grande. El paso se afina con la velocidad.
+  let vmax = 0;
+  for (const b of bodies) {
+    if (b.sleep) continue;
+    const v = Math.abs(b.vx) + Math.abs(b.vy) + Math.abs(b.vz);
+    if (v > vmax) vmax = v;
+  }
+  const steps = Math.max(3, Math.min(14, Math.ceil(vmax * dt / 0.010)));
+  const h = dt / steps;
+  for (let i = 0; i < steps; i++) step(h);
+
+  tryResolve(now);
+  render();
+  requestAnimationFrame(frame);
+}
+
+resize();
+newMatch();
+requestAnimationFrame(frame);
+</script>

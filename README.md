@@ -6,6 +6,8 @@ te quedas con todos los que consigas dar la vuelta.
 - **Documento de diseño completo**: [`docs/DESIGN.md`](docs/DESIGN.md) — concepto, controles
   táctiles, física, efecto palanca, tecnología, arquitectura, roadmap y Fase 0.
 - **Prototipo (Fase 0)**: [`unity/`](unity/) — Unity 6, todo por código, sin escenas.
+- **Prototipo jugable en el navegador**: [`web/index.html`](web/index.html) — la misma
+  física escrita a mano en JavaScript, para poder tirar desde el móvil sin instalar nada.
 
 ## Estado
 
@@ -14,7 +16,13 @@ canales de control táctil, física completa de discos, mecánica de palanca, de
 volteo, combos y contador de Pokédex. Sin tienda, monedas, cuentas ni multijugador: eso
 no arregla un lanzamiento que no se sienta bien.
 
-## Cómo ejecutarlo
+## Cómo probarlo desde el móvil
+
+Abre `web/index.html`. Es un solo fichero sin dependencias: motor de cuerpos rígidos,
+render 3D sobre canvas y los cinco canales de control táctil. Sirve para valorar la
+sensación del lanzamiento, no para juzgar el acabado.
+
+## Cómo ejecutar el prototipo de Unity
 
 1. Unity Hub → **New project → 3D (URP)** con **Unity 6.0 LTS**.
 2. Copia `unity/Assets/Scripts/` dentro de la carpeta `Assets` del proyecto nuevo.

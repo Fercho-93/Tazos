@@ -62,9 +62,10 @@ namespace TazosKanto
 
         void DrawTuning(float w)
         {
-            GUI.Box(new Rect(w - 400, 260, 380, 300), "Física en vivo");
+            GUI.Box(new Rect(w - 400, 260, 380, 358), "Física en vivo");
             float y = 300f;
             GameTuning.LeverBoost = Slider(w, ref y, "Palanca (1 = física pura)", GameTuning.LeverBoost, 1f, 4f);
+            GameTuning.EdgeTumbleBoost = Slider(w, ref y, "Vuelco en canto (1 = física pura)", GameTuning.EdgeTumbleBoost, 1f, 5f);
             GameTuning.MaxSpeed = Slider(w, ref y, "Velocidad máx (m/s)", GameTuning.MaxSpeed, 6f, 22f);
             GameTuning.MaxSpin = Slider(w, ref y, "Spin máx (rad/s)", GameTuning.MaxSpin, 0f, 60f);
             GameTuning.MaxTilt = Slider(w, ref y, "Inclinación máx (°)", GameTuning.MaxTilt, 0f, 80f);

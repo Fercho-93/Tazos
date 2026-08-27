@@ -5,6 +5,8 @@ te quedas con todos los que consigas dar la vuelta.
 
 - **Documento de diseño completo**: [`docs/DESIGN.md`](docs/DESIGN.md) — concepto, controles
   táctiles, física, efecto palanca, tecnología, arquitectura, roadmap y Fase 0.
+- **Guía de primera prueba**: [`docs/PLAYTEST.md`](docs/PLAYTEST.md) — instalación, gesto
+  de lanzamiento y criterios para valorar el prototipo Unity.
 - **Prototipo principal (Fase 0)**: [`unity/`](unity/) — Unity 6, todo por código, sin escenas.
 - **Prototipo web secundario**: [`web/index.html`](web/index.html) — herramienta de prueba rápida;
   ya no es la referencia de producto ni se garantiza paridad física con Unity.

@@ -84,8 +84,17 @@ namespace TazosKanto
             _rb.AddForce(magnus, ForceMode.Force);
         }
 
-        void OnCollisionEnter(Collision c) => HandleWedge(c);
-        void OnCollisionStay(Collision c) => HandleWedge(c);
+        void OnCollisionEnter(Collision c)
+        {
+            HandleWedge(c);
+            HandleEdgeTumble(c);
+        }
+
+        void OnCollisionStay(Collision c)
+        {
+            HandleWedge(c);
+            HandleEdgeTumble(c);
+        }
 
         /// <summary>Palanca. No es un minijuego ni un dado: buscamos contactos que
         /// realmente estén POR DEBAJO del plano medio del otro tazo (o sea, dentro de
@@ -123,6 +132,40 @@ namespace TazosKanto
                 _rb.AddForceAtPosition(-impulse * 0.35f, p.point, ForceMode.Impulse);
                 Feel.OnWedge(p.point);
                 return;   // un empujón de cuña por contacto, no uno por punto
+            }
+        }
+
+        /// <summary>Compensa la flexión que pierde el disco rígido al recibir un
+        /// impacto legítimo en el canto. Sólo añade par al objetivo: nunca impulso
+        /// lineal, por lo que no inventa distancia ni velocidad de desplazamiento.</summary>
+        void HandleEdgeTumble(Collision c)
+        {
+            if (!IsProjectile) return;
+            var target = c.collider.GetComponentInParent<Tazo>();
+            if (target == null || target == this || target.IsProjectile || target.FaceUp) return;
+
+            float boost = GameTuning.EdgeTumbleBoost;
+            if (boost <= 1.001f) return;
+
+            Vector3 up = target.transform.up;
+            Vector3 center = target.Body.worldCenterOfMass;
+            for (int i = 0; i < c.contactCount; i++)
+            {
+                var p = c.GetContact(i);
+                Vector3 arm = p.point - center;
+                Vector3 radial = Vector3.ProjectOnPlane(arm, up);
+                if (radial.magnitude < target.Profile.Radius * 0.78f) continue;
+
+                Vector3 incoming = Vector3.ProjectOnPlane(_rb.linearVelocity - target.Body.linearVelocity, up);
+                if (incoming.sqrMagnitude < 0.01f) continue;
+                if (Vector3.Dot(incoming, radial) >= -0.02f) continue;
+
+                Vector3 extraForce = incoming.normalized * (_rb.mass * incoming.magnitude * 0.12f);
+                Vector3 extraTorque = Vector3.Cross(arm, extraForce) * (boost - 1f);
+                if (extraTorque.sqrMagnitude < 1e-8f) continue;
+
+                target.Body.AddTorque(extraTorque, ForceMode.Impulse);
+                return; // Un único empujón de giro por contacto, no uno por punto.
             }
         }
 

@@ -17,8 +17,12 @@ namespace TazosKanto
 
         // --- Palanca ---
         // 1.0 = física pura (funciona, pero exige precisión de cirujano).
-        // 2.2 = compensa lo que PhysX pierde en cuñas de 4 mm. Es el 20% arcade.
+        // 2.2 = compensa lo que PhysX pierde en cuñas de 4 mm.
         public static float LeverBoost = 2.2f;
+
+        // 1.0 = física pura. Amplifica sólo el par de impactos legítimos en el canto,
+        // para aproximar la flexión de un tazo real sin sumar impulso lineal.
+        public static float EdgeTumbleBoost = 2.5f;
 
         // --- Partida ---
         public static int ThrowsPerMatch = 5;
